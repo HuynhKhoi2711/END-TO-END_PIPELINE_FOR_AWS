@@ -7,46 +7,16 @@ on:
             - staging
             - production
 jobs:
-    Deploy-to-S3:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-              
-            - name: Configure AWS credentials
-              uses: aws-actions/configure-aws-credentials@v4
-              with:
-                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                aws-region: us-east-1
+  Provisioning:
+    name: Provision Infrastructure
+    uses: ./.github/workflows/Provision.yml
+    secrets: inherit
 
-            - name: Terraform Init
-              run: terraform init
-
-            - name: Terraform Plan
-              run: terraform plan
-            
-            - name: Terraform Apply
-              run: terraform apply -auto-approve
-
-            - name: update CloudFront ID from Terraform to GitHub Actions variable
-              run: |
-                curl -L \
-                -X PATCH \
-                -H "Accept: application/vnd.github+json" \
-                -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                https://github.com{{ github.repository }}/actions/variables/CLOUDFRONT_DISTRIBUTION_ID \
-                -d "{\"name\":\"CLOUDFRONT_DISTRIBUTION_ID\",\"value\":\"$CLOUDFRONT_ID\"}"
-
-            - name: Sync files to S3 bucket
-              run: |
-                aws s3 sync ./webapp s3://${{ secrets.S3_BUCKET_NAME }}
-
-            - name: Invalidate CloudFront Cache
-              run: |
-                  aws cloudfront create-invalidation \
-                    --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
-                    --paths "/*"
+  S3_Deployment:
+    name: Deploy to AWS S3
+    if: ${{vars.CLOUDFRONT_DISTRIBUTION_ID != 'empty'}}
+    uses: ./.github/workflows/AWS_deploy.yml
+    secrets: inherit
+    
 
     
