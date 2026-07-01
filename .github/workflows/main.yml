@@ -29,11 +29,15 @@ jobs:
             - name: Terraform Apply
               run: terraform apply -auto-approve
 
-            - name: Get CloudFront ID from Terraform
-              id: tf_outputs
+            - name: update CloudFront ID from Terraform to GitHub Actions variable
               run: |
-                CloudFront_ID=$(terraform output -raw cloudfront_distribution_id)
-                echo "CLOUDFRONT_ID=$CloudFront_ID" >> $GITHUB_SET_ENV
+                curl -L \
+                -X PATCH \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                https://github.com{{ github.repository }}/actions/variables/CLOUDFRONT_DISTRIBUTION_ID \
+                -d "{\"name\":\"CLOUDFRONT_DISTRIBUTION_ID\",\"value\":\"$CLOUDFRONT_ID\"}"
 
             - name: Sync files to S3 bucket
               run: |
@@ -42,7 +46,7 @@ jobs:
             - name: Invalidate CloudFront Cache
               run: |
                   aws cloudfront create-invalidation \
-                    --distribution-id ${{ env.CLOUDFRONT_ID }} \
+                    --distribution-id ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }} \
                     --paths "/*"
 
     
